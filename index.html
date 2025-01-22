@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.26"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.6/lottie.min.js"></script>
+  <title>Interactive Op Art Music</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f0f0f0;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+    }
+
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <script>
+    let isPointerPressed = false;
+    let mp3Loaded = false;
+
+    // Composition with Circles
+    let diam = 100;
+    let c = 255;
+
+    // Tone.js setup
+    const synth = new Tone.MonoSynth({
+      oscillator: {
+        type: 'triangle'
+      },
+      envelope: {
+        attack: 0.1,
+        decay: 0.3,
+        sustain: 0.5,
+        release: 1
+      }
+    }).toDestination();
+
+    const feedbackDelay = new Tone.FeedbackDelay(0.5, 0.8).toDestination();
+    synth.connect(feedbackDelay);
+
+    // Load MP3 as a looped sample
+    const sampler = new Tone.Player('alpha-zero.mp3').toDestination();
+    sampler.loop = true;
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      noFill();
+      loadLottieAnimation();
+      loadMp3AndStartAnimation();
+    }
+
+    function loadLottieAnimation() {
+      const animationContainer = document.createElement('div');
+      animationContainer.id = 'animation-container';
+      document.body.appendChild(animationContainer);
+
+      const animationData = {
+        container: document.getElementById('animation-container'),
+        renderer: 'svg',
+        loop: true,
+        autoplay: true,
+        path: 'loading.json' // Replace with the correct path to your Lottie JSON file
+      };
+
+      const anim = lottie.loadAnimation(animationData);
+      anim.setSpeed(1);
+    }
+
+    function loadMp3AndStartAnimation() {
+      // Load MP3 and start animation when loaded
+      Tone.loaded().then(() => {
+        mp3Loaded = true;
+        document.getElementById('animation-container').style.display = 'none';
+        background(255);
+        draw();
+      });
+
+      sampler.toDestination();
+      sampler.autostart = true;
+    }
+
+    // Movement in Squares
+    let w, h, c0;
+
+    function draw() {
+      if (!mp3Loaded) {
+        return;
+      }
+
+      background(255);
+      c0 = 255;
+      for (let y = 0; y < height; y += h) {
+        h = 0.2 * abs(y - mouseY) + 1;
+        c0 = 255 - c0;
+        c = c0 + mouseX % 255; // Modify c based on the x position of the pointer
+        for (let x = 0; x < width; x += w) {
+          c = 255 - c;
+          fill(c);
+          w = 0.2 * abs(x - mouseX) + 1;
+          rect(x, y, w, h);
+        }
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+
+    function mousePressed() {
+      isPointerPressed = true;
+      playSynth();
+      return false; // prevent default
+    }
+
+    function mouseReleased() {
+      isPointerPressed = false;
+      synth.triggerRelease();
+    }
+
+    function touchStarted() {
+      isPointerPressed = true;
+      Tone.start(); // Ensure audio context is started by user interaction
+      playSynth();
+      return false; // prevent default
+    }
+
+    function touchEnded() {
+      isPointerPressed = false;
+      synth.triggerRelease();
+    }
+
+    function touchMoved() {
+      if (isPointerPressed) {
+        playSynth();
+      }
+      return false; // prevent default
+    }
+
+    function playSynth() {
+      // Map pointer position to a frequency range with additional modulation
+      const frequencyY = map(isPointerPressed ? mouseY : touches[0].y, height, 0, 100, 1000);
+      const modulationX = map(isPointerPressed ? mouseX : touches[0].x, 0, width, -20, 20);
+      const feedbackX = map(isPointerPressed ? mouseX : touches[0].x, 0, width, 0, 0.9);
+
+      // Apply additional modulation
+      synth.oscillator.frequency.exponentialRampTo(frequencyY, 0.01);
+      synth.oscillator.detune.value = modulationX;
+      feedbackDelay.feedback.value = feedbackX;
+
+      // Set the volume here (adjust the value as needed)
+      synth.volume.value = - 15; // Adjust the volume level (in decibels)
+
+      // Trigger the synth with the mapped frequencies
+      if (isPointerPressed) {
+        synth.triggerAttack(frequencyY);
+      }
+    }
+  </script>
+</body>
+
+</html>
